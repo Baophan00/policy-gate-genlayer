@@ -1,0 +1,17 @@
+{
+  "name": "policy-gate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Translate a written policy into rules once, then enforce it deterministically. Built for GenLayer.",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "python -m pytest tests/direct -q",
+    "deploy": "node scripts/deploy_studionet.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "genlayer-js": "1.1.8"
+  }
+}

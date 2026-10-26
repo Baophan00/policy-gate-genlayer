@@ -1,0 +1,10 @@
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+artifacts/
+scripts/.e2e-keys.json
+.pytest_cache/
+__pycache__/
+*.pyc
+scripts/.e2e-keys.json
