@@ -78,9 +78,9 @@ class TestCreate:
 
     def test_rules_are_stored_canonically(self, direct_vm, direct_deploy, direct_alice):
         contract = deploy(direct_deploy)
-        # Same two rules, different key order in the answer: the stored JSON is
-        # canonical and the ids are positional, so two validators that agree on the
-        # triples produce byte identical storage.
+        # Same two rules, different key order in the answer. Rules are sorted by
+        # (field, op, value) and the ids are positional, so two validators that agree
+        # on the triples produce byte identical storage whatever order they wrote.
         mock_raw(
             direct_vm,
             json.dumps(
@@ -95,9 +95,9 @@ class TestCreate:
         set_policy(contract, direct_vm, direct_alice)
 
         rules = contract.get_policy("refunds")["rules"]
-        # The model's order is kept; the ids are positional.
-        assert rules[0] == {"id": "r1", "field": "country", "op": "in", "value": ["US"]}
-        assert rules[1] == {"id": "r2", "field": "amount", "op": "<=", "value": 500}
+        # Canonical order, positional ids: amount sorts before country.
+        assert rules[0] == {"id": "r1", "field": "amount", "op": "<=", "value": 500}
+        assert rules[1] == {"id": "r2", "field": "country", "op": "in", "value": ["US"]}
 
     def test_the_prompt_marks_the_policy_text_as_untrusted(
         self, direct_vm, direct_deploy, direct_alice
@@ -431,7 +431,7 @@ class TestEvaluate:
         assert contract.evaluate("refunds", request(tier="gold", region="eu"))["allowed"] is True
         assert contract.evaluate("refunds", request(tier="Gold", region="eu"))["allowed"] is False
         denied = contract.evaluate("refunds", request(tier="gold", region="sanctioned"))
-        assert denied["rule"] == "r2"
+        assert denied["rule"] == "r1"
         assert denied["field"] == "region"
 
     def test_a_value_of_the_wrong_type_is_a_denial(

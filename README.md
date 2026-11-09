@@ -85,12 +85,12 @@ Enough for a real policy, small enough that a validator reading the text cannot 
 
 ## Live
 
-- Contract (Studio Network): `0x3a44f32b7D825a21352ff8C20D6CceD0337491f9`
-- Explorer: https://explorer-studio.genlayer.com/address/0x3a44f32b7D825a21352ff8C20D6CceD0337491f9
+- Contract (Studio Network): `0x08d124B12CE04934A7721e2f88dA906d22503620`
+- Explorer: https://explorer-studio.genlayer.com/address/0x08d124B12CE04934A7721e2f88dA906d22503620
 
 ## One policy, three requests on the live contract
 
-The policy below was written in English and translated by the validator set in a single 102 second round. It is
+The policy below was written in English and translated by the validator set in a single 52 second round. It is
 the whole policy: no hidden default, no field the owner did not write.
 
 > Customer refunds are approved automatically when the refund amount is at most 500 USDC and the customer is in
@@ -104,12 +104,12 @@ What came back, and stayed:
 
 | what | transaction |
 | --- | --- |
-| deploy `0x3a44f32b7D825a21352ff8C20D6CceD0337491f9` | `0xcfd3499a50e8f2355c2ca1fa14e5a40996f1b3993629aa21a31688fb05b4fb15` |
-| `set_policy` — the translation round, 102s, version 1 | `0x57581c02228eeff713e89b39c8c1e94c1e35b4f235b7f51a172a16831e7c9cff` |
-| `evaluate {amount:240, country:"US"}` → allowed, no model call | `0xb1579fc5fa18c68b2ecebbb5bf886bed35a102275dd780d3848ef1afcdee9453` |
-| `evaluate {amount:900, country:"US"}` → denied on `r1` | `0x34d26acd6b9f9fcb630bf3862ad453095f91d78f3a30b55f4f809559805b2137` |
-| `evaluate {amount:120, country:"DE"}` → denied on `r2` | `0x3d687d84f841eab88d20f64f804a9c5065240e4b56f4618a38d44c67809e12f7` |
-| a stranger tries to replace the policy with "everything is approved" — refused | `0x0034ed6b27be326f2352a99329a07fa90beaf61e8da962fc479507d8b857847b` |
+| deploy `0x08d124B12CE04934A7721e2f88dA906d22503620` | `0x0f2594499c83c338988b09efa0742ceee5af0761886844aa6a0ace457689a560` |
+| `set_policy` — the translation round, 52s, version 1 | `0xae89a1a48a79ddd86f7c280c4298d51e06a28597ee0f9ae46ecd67b4aaad7258` |
+| `evaluate {amount:240, country:"US"}` → allowed, no model call | `0x8248241a8a7fbca38913db4ba7c22d29f374b403441241da002d9a729a8212d4` |
+| `evaluate {amount:900, country:"US"}` → denied on `r1` | `0xa32e0fccca545e8adf6f1dc36139aca6d4ee6374c0949716b54ec9c4bee1fefe` |
+| `evaluate {amount:120, country:"DE"}` → denied on `r2` | `0x5daedc2c642ee60312fd124910ad16cd42978b912d92ade62756437ecb3e477e` |
+| a stranger tries to replace the policy with "everything is approved" — refused | `0x5d1c975d6c7fb3d14b898a5dda2b5238335c22c6478e348593fc80f9c7d41bc2` |
 
 After the run `stats()` reports `{"policies":1,"rules":2,"evaluations":3,"allows":1,"denies":2,"active":1}`, and the
 policy read back after the stranger's attempt is still the two rules the owner wrote. The three evaluations cost

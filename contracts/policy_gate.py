@@ -115,8 +115,7 @@ class PolicyGate(gl.Contract):
         if len(text) == 0 or len(text) > MAX_TEXT_CHARS:
             raise gl.vm.UserError("a policy needs text of at most 2000 characters")
 
-    @staticmethod
-    def _translate(text: str) -> list:
+    def _translate(self, text: str) -> list:
         """One model round: prose in, strictly parsed rule list out."""
         prompt = (
             "You are turning a written policy into machine checkable rules.\n"
@@ -128,8 +127,11 @@ class PolicyGate(gl.Contract):
             "-----------\n"
             f"{text}\n"
             "-----------\n\n"
-            "Encode every limit, requirement and prohibition the policy states as one\n"
-            "rule per distinct condition, in the order the policy states them. Use a\n"
+            "Encode only the conditions under which the policy GRANTS the outcome,\n"
+            "one rule per distinct condition. A sentence that says what happens\n"
+            "otherwise (above the limit, anywhere else, needs a human) restates the\n"
+            "same condition from the other side: do not add its negation as another\n"
+            "rule. 'In the US or Canada' is a single 'in' rule with two values. Use a\n"
             "short lowercase identifier for the request field the policy refers to\n"
             "(for example amount, country, tier, is_refund). Operators are one of\n"
             "'<=', '<', '>=', '>', '==', '!=', 'in'. A value is a whole number for the\n"
@@ -141,25 +143,25 @@ class PolicyGate(gl.Contract):
         )
 
         def ask() -> str:
-            return gl.nondet.exec_prompt(prompt, response_format="json")
+            # Parse and sort inside the callback: validators then compare the rule
+            # set itself, not the prose or the formatting the model happened to use.
+            return self._answer(self._parse_rules(gl.nondet.exec_prompt(prompt, response_format="json")))
 
         answer = gl.eq_principle.prompt_comparative(
             ask,
             principle=(
-                "Both answers must produce exactly the same set of (field, op, value)\n"
-                "triples. Ignore everything else they contain: rule ids, the order of\n"
-                "the rules, field order, key order and any explanatory prose are free\n"
-                "to differ. Numbers must be written as integers, 500 and never 500.0,\n"
-                "because a float does not survive calldata. An extra rule, a missing\n"
-                "rule, a renamed field, a different operator or a different value is\n"
-                "not a match. An answer that is not a JSON object with a 'rules' list\n"
-                "is not a match."
+                "Both answers must be the same canonical JSON object of the form\n"
+                "{'rules': [...]}, containing the same number of rules with the same\n"
+                "field, operator and value in each. The contract has already parsed,\n"
+                "normalised and sorted the rules before answering, so key order, rule\n"
+                "order, number formatting (500 vs 500.0) and whitespace are gone: any\n"
+                "remaining difference is a genuinely different rule set, which is not\n"
+                "a match."
             ),
         )
-        return PolicyGate._parse_rules(answer)
+        return self._parse_rules(answer)
 
-    @staticmethod
-    def _parse_rules(answer) -> list:
+    def _parse_rules(self, answer) -> list:
         """Strict: a broken answer raises, it never becomes an empty rule set."""
         if isinstance(answer, str):
             try:
@@ -213,7 +215,7 @@ class PolicyGate(gl.Contract):
                         )
                 value = [entry for entry in value]
             elif op in ORDER_OPS:
-                number = PolicyGate._as_number(value)
+                number = self._as_number(value)
                 if number is None:
                     raise gl.vm.UserError(
                         f"rule {position} compares with {value!r}, which is not a number"
@@ -225,7 +227,7 @@ class PolicyGate(gl.Contract):
                         f"rule {position} compares with the boolean {value!r}, which is not a value"
                     )
                 if isinstance(value, (int, float)):
-                    number = PolicyGate._as_number(value)
+                    number = self._as_number(value)
                     if number is None:
                         raise gl.vm.UserError(
                             f"rule {position} compares with {value!r}, which is not a number"
@@ -239,8 +241,7 @@ class PolicyGate(gl.Contract):
             out.append({"id": f"r{position}", "field": field, "op": op, "value": value})
         return out
 
-    @staticmethod
-    def _as_number(value):
+    def _as_number(self, value):
         """Finite number or None. bool is an int in python and is not a number here."""
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None
@@ -251,26 +252,24 @@ class PolicyGate(gl.Contract):
             return int(number)
         return number
 
-    @staticmethod
-    def _same(actual, target) -> bool:
-        left = PolicyGate._as_number(actual)
-        right = PolicyGate._as_number(target)
+    def _same(self, actual, target) -> bool:
+        left = self._as_number(actual)
+        right = self._as_number(target)
         if left is not None and right is not None:
             return left == right
         if isinstance(actual, str) and isinstance(target, str):
             return actual == target
         return False
 
-    @staticmethod
-    def _holds(actual, op: str, target) -> bool:
+    def _holds(self, actual, op: str, target) -> bool:
         if op == "in":
             return isinstance(actual, str) and actual in target
         if op == "==":
-            return PolicyGate._same(actual, target)
+            return self._same(actual, target)
         if op == "!=":
-            return not PolicyGate._same(actual, target)
-        left = PolicyGate._as_number(actual)
-        right = PolicyGate._as_number(target)
+            return not self._same(actual, target)
+        left = self._as_number(actual)
+        right = self._as_number(target)
         if left is None or right is None:
             return False
         if op == "<=":
@@ -281,8 +280,7 @@ class PolicyGate(gl.Contract):
             return left >= right
         return left > right
 
-    @staticmethod
-    def _render(value) -> str:
+    def _render(self, value) -> str:
         try:
             return json.dumps(value)
         except Exception:
@@ -298,9 +296,16 @@ class PolicyGate(gl.Contract):
             found.denies = found.denies + u256(1)
         self.tallies[policy_id] = found
 
-    @staticmethod
-    def _canonical(rules: list) -> str:
+    def _canonical(self, rules: list) -> str:
         return json.dumps(rules, sort_keys=True, separators=(",", ":"))
+
+    def _answer(self, rules: list) -> str:
+        """The exact text validators compare: canonical, order-free, no prose."""
+        ordered = sorted(
+            rules,
+            key=lambda r: (str(r["field"]), str(r["op"]), json.dumps(r["value"], sort_keys=True)),
+        )
+        return json.dumps({"rules": ordered}, sort_keys=True, separators=(",", ":"))
 
     # ------------------------------------------------------------------- writes
 
